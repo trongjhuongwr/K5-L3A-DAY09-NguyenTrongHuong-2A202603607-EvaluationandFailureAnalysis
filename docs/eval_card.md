@@ -2,10 +2,10 @@
 
 Card này đi kèm mỗi báo cáo và được dùng lại ở Day 10.
 
-- **Run ID / eval set SHA:** `E-swarm-20261117-fb14` / `fb14fcd60c7d`
+- **Run ID / eval set SHA:** `E-swarm-20261117-15e4` / `15e471f089c0`
 - **Phiên bản:**
   - Code: commit trên nhánh `starter/d09`
-  - Eval set: v1 (`data/eval/eval_set_v1.jsonl`, SHA: `fb14fcd60c7d`)
+  - Eval set: v1 (`data/eval/eval_set_v1.jsonl`, SHA: `15e471f089c0`)
   - Metric spec: `config/metric_spec.yaml` (version 1.0)
   - Seeds: 11, 22, 33, 44, 55 (5 seeds cố định)
   - Harness / LLM: `pydantic-evals 2.68.0`, `MockLLM`
@@ -49,7 +49,7 @@ Card này đi kèm mỗi báo cáo và được dùng lại ở Day 10.
 
 ## Đánh giá mở rộng Eval set v2 (Advanced & Expert)
 
-- **Run ID / eval set SHA (v2):** `E-swarm-20261117-aad8` / `aad8f01923aa`
+- **Run ID / eval set SHA (v2):** `E-swarm-20261117-635e` / `635e4718a35d`
 - **Quy mô v2:** 28 items (14 v1 + 14 adversarial pack) × 5 seeds = 140 trials.
 - **Ngưỡng chọn từ A/A noise check:**
   - Chạy A/A trên 2 tập seeds: `[11, 22, 33, 44, 55]` vs `[66, 77, 88, 99, 110]`.
