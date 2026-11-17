@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VinAI Lab 9 — Evaluation Harness & CI Gate Architecture</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #09090b;
+      --surface: #111115;
+      --surface-elevated: #18181f;
+      --border: #27272f;
+      --border-subtle: #1c1c24;
+      --text: #f4f4f5;
+      --text-muted: #a1a1aa;
+      --text-dim: #71717a;
+      --indigo: #6366f1;
+      --indigo-glow: rgba(99, 102, 241, 0.15);
+      --emerald: #10b981;
+      --emerald-bg: rgba(16, 185, 129, 0.08);
+      --rose: #f43f5e;
+      --rose-bg: rgba(244, 63, 94, 0.08);
+      --amber: #f59e0b;
+      --sky: #38bdf8;
+      --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top Nav */
+    header {
+      border-bottom: 1px solid var(--border);
+      background: rgba(9, 9, 11, 0.85);
+      backdrop-filter: blur(16px);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      padding: 0.85rem 2.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .brand-mark {
+      background: #18181f;
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 0.75rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      padding: 0.35rem 0.65rem;
+      border-radius: 6px;
+      letter-spacing: 0.05em;
+    }
+
+    .brand-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+
+    .brand-meta {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+    }
+
+    .nav-controls {
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+    }
+
+    .ci-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--emerald-bg);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      color: var(--emerald);
+      padding: 0.35rem 0.85rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      font-family: var(--font-mono);
+    }
+
+    .dot-live {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--emerald);
+      box-shadow: 0 0 8px var(--emerald);
+    }
+
+    /* Deck Viewport */
+    .deck-container {
+      flex: 1;
+      max-width: 1300px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 2.5rem 2.5rem 4rem;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Step / Slide Timeline Bar */
+    .timeline {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 0.5rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .timeline-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+
+    .timeline-item:hover {
+      background: var(--surface-elevated);
+      border-color: #3f3f4e;
+    }
+
+    .timeline-item.active {
+      background: #14141d;
+      border-color: var(--indigo);
+      box-shadow: 0 0 0 1px var(--indigo);
+    }
+
+    .timeline-step {
+      font-size: 0.68rem;
+      font-family: var(--font-mono);
+      color: var(--text-dim);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .timeline-item.active .timeline-step {
+      color: var(--indigo);
+    }
+
+    .timeline-title {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .timeline-item.active .timeline-title {
+      color: var(--text);
+    }
+
+    /* Slides Content */
+    .slide {
+      display: none;
+      animation: slideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .slide.active {
+      display: block;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .slide-header {
+      margin-bottom: 2rem;
+    }
+
+    .slide-kicker {
+      font-size: 0.78rem;
+      font-family: var(--font-mono);
+      font-weight: 600;
+      color: var(--indigo);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.5rem;
+    }
+
+    .slide-heading {
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+      margin-bottom: 0.85rem;
+    }
+
+    .slide-lead {
+      font-size: 1.05rem;
+      color: var(--text-muted);
+      max-width: 900px;
+      line-height: 1.6;
+    }
+
+    /* Layout Grids */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.75rem;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.25rem;
+    }
+
+    .grid-9 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+
+    /* Cards */
+    .box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+
+    .box-elevated {
+      background: var(--surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+
+    .box-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 0.4rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .box-desc {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Code & Diffs */
+    .diff-block {
+      background: #0d0d11;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      padding: 1rem;
+      line-height: 1.6;
+      overflow-x: auto;
+    }
+
+    .diff-header {
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      border-bottom: 1px solid #1f1f28;
+      padding-bottom: 0.5rem;
+      margin-bottom: 0.75rem;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .diff-add { color: #34d399; background: rgba(52, 211, 153, 0.08); display: block; padding: 0 0.4rem; border-radius: 4px; }
+    .diff-del { color: #f87171; background: rgba(248, 113, 113, 0.08); display: block; padding: 0 0.4rem; border-radius: 4px; }
+    .diff-mute { color: var(--text-dim); }
+
+    /* Interactive Component */
+    .interactive-panel {
+      background: #0e0e13;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.5rem;
+    }
+
+    .scenario-selector {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.25rem;
+      background: #09090c;
+      padding: 0.35rem;
+      border-radius: 10px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .scenario-btn {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-family: var(--font-sans);
+      font-size: 0.82rem;
+      font-weight: 600;
+      padding: 0.6rem 0.75rem;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-align: center;
+    }
+
+    .scenario-btn:hover {
+      color: var(--text);
+    }
+
+    .scenario-btn.active {
+      background: #1a1a24;
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+      border: 1px solid #2f2f3d;
+    }
+
+    /* Badges */
+    .tag {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 5px;
+      font-weight: 600;
+      display: inline-block;
+    }
+    .tag-neutral { background: #1c1c24; color: #a1a1aa; border: 1px solid #2c2c38; }
+    .tag-emerald { background: var(--emerald-bg); color: var(--emerald); border: 1px solid rgba(16,185,129,0.3); }
+    .tag-rose { background: var(--rose-bg); color: var(--rose); border: 1px solid rgba(244,63,94,0.3); }
+    .tag-indigo { background: rgba(99,102,241,0.1); color: #818cf8; border: 1px solid rgba(99,102,241,0.3); }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.84rem;
+    }
+
+    th {
+      text-align: left;
+      padding: 0.65rem 0.85rem;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+      font-weight: 600;
+      font-size: 0.74rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    td {
+      padding: 0.75rem 0.85rem;
+      border-bottom: 1px solid var(--border-subtle);
+      color: var(--text);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* Bottom Control Bar */
+    .deck-footer {
+      border-top: 1px solid var(--border);
+      background: rgba(9, 9, 11, 0.9);
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 0.75rem 2.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 40;
+    }
+
+    .key-guide {
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    kbd {
+      background: #181820;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.15rem 0.4rem;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+
+    .deck-nav-btns {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .btn-nav {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--font-sans);
+      font-size: 0.82rem;
+      font-weight: 600;
+      padding: 0.45rem 1rem;
+      border-radius: 7px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.15s ease;
+    }
+
+    .btn-nav:hover {
+      background: var(--surface-elevated);
+      border-color: #3f3f4e;
+    }
+
+    .btn-nav:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    /* Metric Visualizer Bars */
+    .bar-track {
+      background: #1c1c24;
+      height: 6px;
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 0.4rem;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 999px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <header>
+    <div class="nav-brand">
+      <span class="brand-mark">LAB 09</span>
+      <div>
+        <div class="brand-title">LogiX-VN Claims & Refund Agent</div>
+        <div class="brand-meta">Nguyễn Trọng Hưởng · MSSV: 2A202603607 · VinAI K5</div>
+      </div>
+    </div>
+    <div class="nav-controls">
+      <span class="ci-pill"><span class="dot-live"></span> GITHUB ACTIONS: PASS (100/100)</span>
+      <a href="https://github.com/trongjhuongwr/K5-L3A-DAY09-NguyenTrongHuong-2A202603607-EvaluationandFailureAnalysis/pull/1" target="_blank" style="color: var(--text-dim); text-decoration: none; font-size: 0.82rem; font-family: var(--font-mono);">PR #1 ↗</a>
+    </div>
+  </header>
+
+  <!-- Deck Viewport -->
+  <div class="deck-container">
+
+    <!-- Timeline Navigation -->
+    <div class="timeline" id="timelineBar">
+      <div class="timeline-item active" onclick="goToSlide(0)">
+        <span class="timeline-step">01. Overview</span>
+        <span class="timeline-title">Bức tranh & Vấn đề</span>
+      </div>
+      <div class="timeline-item" onclick="goToSlide(1)">
+        <span class="timeline-step">02. Taxonomy</span>
+        <span class="timeline-title">9 Failure Modes</span>
+      </div>
+      <div class="timeline-item" onclick="goToSlide(2)">
+        <span class="timeline-step">03. Calibration</span>
+        <span class="timeline-title">Judge-the-Judge</span>
+      </div>
+      <div class="timeline-item" onclick="goToSlide(3)">
+        <span class="timeline-step">04. Graders</span>
+        <span class="timeline-title">Vết suy luận (Trace)</span>
+      </div>
+      <div class="timeline-item" onclick="goToSlide(4)">
+        <span class="timeline-step">05. CI Gate</span>
+        <span class="timeline-title">Paired Bootstrap</span>
+      </div>
+      <div class="timeline-item" onclick="goToSlide(5)">
+        <span class="timeline-step">06. Slices & Noise</span>
+        <span class="timeline-title">pass^k & Anti-Gaming</span>
+      </div>
+      <div class="timeline-item" onclick="goToSlide(6)">
+        <span class="timeline-step">07. Verification</span>
+        <span class="timeline-title">Bảng điểm 100/100</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 0: PROBLEM & ARCHITECTURE -->
+    <div class="slide active" id="slide-0">
+      <div class="slide-header">
+        <div class="slide-kicker">01 / Motivation & High-Level Architecture</div>
+        <h1 class="slide-heading">Tại sao Agentic AI cần CI Gate độc lập?</h1>
+        <p class="slide-lead">
+          Ở Day 8, chúng ta đã xây dựng một hệ thống Swarm AI hoàn tiền tự động. Nhưng khi đưa vào production, việc chuyển tiền thực tế <strong>không chấp nhận bất kỳ sự ảo giác (hallucination) nào</strong>. Một câu trả lời "nhầm lẫn" có thể khiến công ty mất tiền vĩnh viễn hoặc vi phạm pháp luật.
+        </p>
+      </div>
+
+      <div class="grid-2">
+        <div class="box">
+          <div class="box-title">
+            <span>Rủi ro thực tế khi không có Eval Gate</span>
+            <span class="tag tag-rose">High Risk</span>
+          </div>
+          <p class="box-desc" style="margin-bottom: 1rem;">Khi kỹ sư cập nhật prompt, đổi mô hình nền (LLM checkpoint), hoặc refactor tool logic:</p>
+          <ul style="list-style: none; display: flex; flex-direction: column; gap: 0.75rem; font-size: 0.85rem; color: var(--text-muted);">
+            <li style="display: flex; gap: 0.5rem;"><span style="color: var(--rose);">✕</span> <strong>Lỗi tiền bạc:</strong> Khách khai trễ 5 ngày (đúng ra chỉ trễ 1 ngày), Agent tin ticket thay vì tra cứu Database công ty.</li>
+            <li style="display: flex; gap: 0.5rem;"><span style="color: var(--rose);">✕</span> <strong>Vượt quyền hạn (Authority Bypass):</strong> Đơn hàng vượt hạn mức 300.000đ cần quản lý duyệt, quản lý bấm Từ Chối nhưng Agent vẫn gọi tool chuyển tiền.</li>
+            <li style="display: flex; gap: 0.5rem;"><span style="color: var(--rose);">✕</span> <strong>Lệch sổ (Misreport):</strong> Agent gửi tin nhắn hứa "Đã hoàn 35.000đ", nhưng trong sổ quỹ kế toán thực tế ghi 0đ.</li>
+          </ul>
+        </div>
+
+        <div class="box">
+          <div class="box-title">
+            <span>Giải pháp Lab 9: Cổng phát hành tự động (CI Gate)</span>
+            <span class="tag tag-emerald">Deterministic + Math</span>
+          </div>
+          <p class="box-desc" style="margin-bottom: 1rem;">Mỗi Pull Request (PR) phải trải qua pipeline đánh giá toán học nghiêm ngặt:</p>
+          <div class="diff-block">
+            <div class="diff-header">
+              <span>EVALUATION PIPELINE FLOW</span>
+              <span>140 trials / test run</span>
+            </div>
+            <div>[Dataset] eval_set_v2.jsonl (28 items) × 5 seeds (11..55)</div>
+            <div style="color: var(--indigo);">  ↓ Trajectory Tracing & Deterministic Graders</div>
+            <div>[Graders] ApprovalBypass · RefundAmountCorrect · ReplyMatchesLedger</div>
+            <div style="color: var(--indigo);">  ↓ Paired Bootstrap 95% Confidence Intervals</div>
+            <div class="diff-add">+ PR fixed: Δ +0.014, CI [+0.000, +0.043] ➔ EXIT 0 (MERGE)</div>
+            <div class="diff-del">- PR regression: Δ -0.271, CI [-0.500, -0.057] ➔ EXIT 1 (BLOCKED)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 1: 9 FAILURE MODES -->
+    <div class="slide" id="slide-1">
+      <div class="slide-header">
+        <div class="slide-kicker">02 / Failure Mode Taxonomy</div>
+        <h1 class="slide-heading">Bảng phân loại 9 Dạng Thất Bại (FM-01 ➔ FM-09)</h1>
+        <p class="slide-lead">
+          Để quản lý rủi ro chuẩn mực kỹ thuật, mọi lỗi của Agent được định nghĩa rõ ràng về bản chất, phân loại kiểm tra và grader tương ứng. Bấm vào từng dạng lỗi để xem ví dụ mã nguồn:
+        </p>
+      </div>
+
+      <div class="grid-9" id="fmCardsContainer">
+        <!-- Rendered by JS -->
+      </div>
+
+      <div class="box" id="fmDetailBox" style="margin-top: 1.5rem; display: none; background: #0c0c10;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+          <h3 id="fmDetailTitle" style="color: #ffffff; font-size: 1rem;"></h3>
+          <span id="fmDetailGrader" class="tag tag-indigo"></span>
+        </div>
+        <p id="fmDetailDesc" style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 0.75rem;"></p>
+        <div id="fmDetailTrace" class="diff-block" style="font-size: 0.78rem;"></div>
+      </div>
+    </div>
+
+    <!-- SLIDE 2: JUDGE CALIBRATION -->
+    <div class="slide" id="slide-2">
+      <div class="slide-header">
+        <div class="slide-kicker">03 / Judge-the-Judge Calibration</div>
+        <h1 class="slide-heading">Thẩm định Trọng tài: Toán học kiểm soát LLM</h1>
+        <p class="slide-lead">
+          Khi dùng một mô hình LLM làm trọng tài (LLM-as-a-Judge) để chấm điểm mô hình khác, chúng ta không thể "tin tưởng mù quáng". Cần thẩm định trọng tài đó dựa trên <strong>đối chiếu với chuyên gia con người (Ground Truth)</strong>.
+        </p>
+      </div>
+
+      <div class="grid-2">
+        <div class="box" style="border-top: 3px solid var(--emerald);">
+          <div class="box-title">
+            <span>judge_tone (Kiểm tra giọng điệu)</span>
+            <span class="tag tag-emerald">ĐẠT CHUẨN (KEPT)</span>
+          </div>
+          <p class="box-desc" style="margin-bottom: 1rem;">Đo lường mức độ tôn trọng, đúng mực, đồng cảm khi phản hồi khiếu nại của khách hàng.</p>
+          <table>
+            <thead>
+              <tr><th>Chỉ số</th><th>Thực tế</th><th>Ngưỡng yêu cầu</th><th>Kết luận</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Cohen's Kappa (&kappa;)</strong></td>
+                <td><strong style="color: var(--emerald);">0.757</strong></td>
+                <td>&ge; 0.60</td>
+                <td><span class="tag tag-emerald">Đồng thuận cao</span></td>
+              </tr>
+              <tr>
+                <td><strong>Độ chuẩn xác (Precision)</strong></td>
+                <td>0.857</td>
+                <td>&ge; 0.70</td>
+                <td><span class="tag tag-emerald">Đạt</span></td>
+              </tr>
+              <tr>
+                <td><strong>Độ nhạy (Recall)</strong></td>
+                <td>0.800</td>
+                <td>&ge; 0.70</td>
+                <td><span class="tag tag-emerald">Đạt</span></td>
+              </tr>
+              <tr>
+                <td><strong>Rogan-Gladen Prevalence</strong></td>
+                <td>0.185</td>
+                <td>[0.10, 0.40]</td>
+                <td><span class="tag tag-emerald">Khớp tần suất thực</span></td>
+              </tr>
+            </tbody>
+          </table>
+          <div style="margin-top: 1rem; font-size: 0.8rem; color: var(--text-muted); background: #0c1410; padding: 0.75rem; border-radius: 8px;">
+            <strong>Nguyên nhân đạt:</strong> Tiêu chí có rubric cụ thể (chào hỏi, xin lỗi, không đổ lỗi cho khách), LLM dễ dàng hiểu và đồng thuận với con người.
+          </div>
+        </div>
+
+        <div class="box" style="border-top: 3px solid var(--rose);">
+          <div class="box-title">
+            <span>judge_helpful (Kiểm tra tính hữu ích)</span>
+            <span class="tag tag-rose">LOẠI BỎ (REJECTED)</span>
+          </div>
+          <p class="box-desc" style="margin-bottom: 1rem;">Đo xem câu trả lời có "hữu ích" cho khách hay không. Tiêu chuẩn này quá cảm tính.</p>
+          <table>
+            <thead>
+              <tr><th>Chỉ số</th><th>Thực tế</th><th>Ngưỡng yêu cầu</th><th>Kết luận</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Cohen's Kappa (&kappa;)</strong></td>
+                <td><strong style="color: var(--rose);">0.375</strong></td>
+                <td>&ge; 0.60</td>
+                <td><span class="tag tag-rose">Kém (Fair agreement)</span></td>
+              </tr>
+              <tr>
+                <td><strong>Độ chuẩn xác (Precision)</strong></td>
+                <td>0.500</td>
+                <td>&ge; 0.70</td>
+                <td><span class="tag tag-rose">Sai 50%</span></td>
+              </tr>
+              <tr>
+                <td><strong>Độ nhạy (Recall)</strong></td>
+                <td>0.300</td>
+                <td>&ge; 0.70</td>
+                <td><span class="tag tag-rose">Bỏ sót 70% lỗi</span></td>
+              </tr>
+              <tr>
+                <td><strong>Rogan-Gladen Prevalence</strong></td>
+                <td>-0.428</td>
+                <td>[0.00, 1.00]</td>
+                <td><span class="tag tag-rose">Vô lý toán học (Âm)</span></td>
+              </tr>
+            </tbody>
+          </table>
+          <div style="margin-top: 1rem; font-size: 0.8rem; color: var(--text-muted); background: #1a0f12; padding: 0.75rem; border-radius: 8px;">
+            <strong>Hậu quả nếu dùng:</strong> Trọng tài này sẽ tạo ra vô số False Alarm (chặn nhầm PR tốt) hoặc thả lọt các phản hồi kém chất lượng lên Production.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 3: GRADERS & TRACE AUDIT -->
+    <div class="slide" id="slide-3">
+      <div class="slide-header">
+        <div class="slide-kicker">04 / Trajectory Graders</div>
+        <h1 class="slide-heading">Soi từng vết bước chân: Trajectory Grader M3</h1>
+        <p class="slide-lead">
+          Đánh giá Agent khác với Function thông thường: <strong>Không chỉ xem Output, mà phải xem toàn bộ Trace</strong>. Một Agent có thể trả về câu trả lời có vẻ đúng, nhưng bên trong đã vi phạm quy trình hoặc gian lận dữ liệu.
+        </p>
+      </div>
+
+      <div class="grid-2">
+        <div class="box">
+          <div class="box-title">
+            <span>Case Study Thâm Nhập: Claim C-008</span>
+            <span class="tag tag-indigo">Lỗi FM-08 (Misreport)</span>
+          </div>
+          <p class="box-desc" style="margin-bottom: 1rem;">Bóc tách luồng thực thi trong Trace JSON giữa Client Response và Refund Ledger:</p>
+          <div class="diff-block">
+            <div class="diff-header">
+              <span>AGENT TRACE EVENT LOG</span>
+              <span>claim_id: C-008</span>
+            </div>
+            <div>[Step 1] Customer claims order late by 2 days (Fee: 35.000đ)</div>
+            <div>[Step 2] Agent checks policy: Eligible for 100% shipping refund</div>
+            <div class="diff-del">[Step 3] Tool bug: pre_deducted flag reduced ledger refund to 0đ</div>
+            <div class="diff-add">[Step 4] Agent email to customer: "Chúng tôi đã hoàn 35.000đ"</div>
+            <div style="color: var(--amber); margin-top: 0.5rem;">➔ THỰC TẾ: Khách tưởng được nhận tiền, nhưng tài khoản ngân hàng = 0đ!</div>
+          </div>
+        </div>
+
+        <div class="box">
+          <div class="box-title">
+            <span>Bộ 3 Grader Deterministic hoàn thiện</span>
+            <span class="tag tag-emerald">100% Code Verified</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 1rem; margin-top: 0.5rem;">
+            <div style="background: #121218; padding: 0.85rem; border-radius: 8px; border-left: 3px solid var(--rose);">
+              <div style="font-weight: 700; font-size: 0.88rem; color: #fff;">ApprovalBypass</div>
+              <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem;">Ngăn chặn tạo lệnh hoàn tiền khi trạng thái là <code>denied</code> hoặc chưa được cấp thẩm quyền.</div>
+            </div>
+            <div style="background: #121218; padding: 0.85rem; border-radius: 8px; border-left: 3px solid var(--amber);">
+              <div style="font-weight: 700; font-size: 0.88rem; color: #fff;">RefundAmountCorrect</div>
+              <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem;">Đối chiếu số tiền đề xuất và số tiền ghi vào ledger với công thức chính sách chính xác đến từng đồng.</div>
+            </div>
+            <div style="background: #121218; padding: 0.85rem; border-radius: 8px; border-left: 3px solid var(--sky);">
+              <div style="font-weight: 700; font-size: 0.88rem; color: #fff;">ReplyMatchesLedger (M3 Custom Grader)</div>
+              <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem;">Trích xuất regex số tiền trong văn bản phản hồi và đối chiếu tuyệt đối với <code>refund_ledger</code>. Đạt 100% detection rate.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 4: PAIRED BOOTSTRAP CI GATE -->
+    <div class="slide" id="slide-4">
+      <div class="slide-header">
+        <div class="slide-kicker">05 / Paired Bootstrap Release Gate</div>
+        <h1 class="slide-heading">Bộ mô phỏng Cổng CI Gate (Live Interactive)</h1>
+        <p class="slide-lead">
+          Để không bị phụ thuộc vào sự may rủi, CI Gate sử dụng <strong>Paired Bootstrap 95% Confidence Interval (CI)</strong> trên từng cặp (item_id, seed). Thử nghiệm các kịch bản PR bên dưới:
+        </p>
+      </div>
+
+      <div class="interactive-panel">
+        <div class="scenario-selector">
+          <button class="scenario-btn active" onclick="runSimulation('fixed')">1. PR Sửa Lỗi (fixed)</button>
+          <button class="scenario-btn" onclick="runSimulation('seeded_regression')">2. PR Hồi Quy Nặng (seeded_regression)</button>
+          <button class="scenario-btn" onclick="runSimulation('slice_regression')">3. PR Lỗi Phân Vùng Tiền (slice_regression)</button>
+          <button class="scenario-btn" onclick="runSimulation('flaky_regression')">4. PR Lỗi Chập Chờn (flaky_regression)</button>
+        </div>
+
+        <div class="grid-2" style="align-items: start;">
+          <div class="diff-block" style="font-size: 0.78rem; min-height: 220px;" id="simConsoleOutput">
+            <!-- Output injected by JS -->
+          </div>
+
+          <div class="box" style="background: #13131b; height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-dim);">GATE VERDICT</span>
+                <span id="simVerdictBadge" class="tag tag-emerald">EXIT 0 (MERGE)</span>
+              </div>
+              <h3 id="simVerdictTitle" style="color: #ffffff; font-size: 1.1rem; margin-bottom: 0.5rem;">Bản Sửa Lỗi Hợp Lệ</h3>
+              <p id="simVerdictDesc" style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.6;"></p>
+            </div>
+
+            <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border); font-size: 0.75rem; color: var(--text-dim); font-family: var(--font-mono);">
+              Paired Bootstrap: 10,000 resamples · Confidence Level: 95%
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 5: SLICES & NOISE FLOOR -->
+    <div class="slide" id="slide-5">
+      <div class="slide-header">
+        <div class="slide-kicker">06 / Slices, Noise Floor & Anti-Gaming</div>
+        <h1 class="slide-heading">Phân Vùng Nhạy Cảm & Phòng Tuyến Chống Gian Lận</h1>
+        <p class="slide-lead">
+          Điểm trung bình toàn bài có thể đánh lừa (Nghịch lý Simpson). Lab 9 thiết lập Slice Gate để bảo vệ các phân khúc nhạy cảm và 4 bẫy chống gian lận kiểm thử (Anti-Gaming Traps).
+        </p>
+      </div>
+
+      <div class="grid-2">
+        <div class="box">
+          <div class="box-title">
+            <span>Slices: money_movement (Rút tiền)</span>
+            <span class="tag tag-rose">Bắt lỗi tinh vi</span>
+          </div>
+          <p class="box-desc" style="margin-bottom: 0.85rem;">
+            Trong kịch bản <code>slice_regression</code>, điểm trung bình toàn bài vẫn đạt <strong>93.57%</strong> (vượt xa chuẩn chung 85%). Tuy nhiên, riêng phân vùng các đơn có phát sinh tiền mặt (<code>money_movement</code>), tỷ lệ pass rớt xuống <strong>85.00%</strong> (vi phạm ngưỡng sàn 90%).
+          </p>
+          <div style="margin-bottom: 0.75rem;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.78rem; font-family: var(--font-mono);">
+              <span>Overall Pass Rate: 93.57%</span>
+              <span style="color: var(--emerald);">OK (Min: 85%)</span>
+            </div>
+            <div class="bar-track"><div class="bar-fill" style="width: 93.57%; background: var(--emerald);"></div></div>
+          </div>
+          <div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.78rem; font-family: var(--font-mono);">
+              <span>Slice money_movement: 85.00%</span>
+              <span style="color: var(--rose);">BLOCK (Min: 90%)</span>
+            </div>
+            <div class="bar-track"><div class="bar-fill" style="width: 85%; background: var(--rose);"></div></div>
+          </div>
+        </div>
+
+        <div class="box">
+          <div class="box-title">
+            <span>4 Bẫy Chống Gian Lận (Integrity Traps)</span>
+            <span class="tag tag-emerald">100% Traps Neutralized</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 0.65rem; margin-top: 0.5rem; font-size: 0.82rem;">
+            <div style="display: flex; justify-content: space-between; background: #13131a; padding: 0.5rem 0.75rem; border-radius: 6px;">
+              <span>1. evaluator_errors_as_nan (Giấu lỗi thành None)</span>
+              <span class="tag tag-rose">Blocked</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; background: #13131a; padding: 0.5rem 0.75rem; border-radius: 6px;">
+              <span>2. dropped_failing_rows (Xóa dòng fail 131 != 140)</span>
+              <span class="tag tag-rose">Blocked</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; background: #13131a; padding: 0.5rem 0.75rem; border-radius: 6px;">
+              <span>3. cherry_picked_seeds (Tráo hạt giống đẹp)</span>
+              <span class="tag tag-rose">Blocked</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; background: #13131a; padding: 0.5rem 0.75rem; border-radius: 6px;">
+              <span>4. loosened_spec (Tự hạ điểm chuẩn - Vi phạm Ratchet)</span>
+              <span class="tag tag-rose">Blocked</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 6: VERIFICATION & SCORECARD -->
+    <div class="slide" id="slide-6">
+      <div class="slide-header">
+        <div class="slide-kicker">07 / Submission Scorecard & Verification</div>
+        <h1 class="slide-heading">Minh chứng hoàn thành 100/100 Điểm</h1>
+        <p class="slide-lead">
+          Toàn bộ các tiêu chuẩn thẩm định của VinAI đều đã được thực thi và tự động kiểm chứng trên CI Server GitHub Actions.
+        </p>
+      </div>
+
+      <div class="grid-3" style="margin-bottom: 1.5rem;">
+        <div class="box" style="text-align: center; border-top: 3px solid var(--sky);">
+          <div style="font-family: var(--font-mono); font-size: 2.2rem; font-weight: 800; color: var(--sky);">60 / 60</div>
+          <div style="font-weight: 700; margin-top: 0.25rem;">PHẦN CORE</div>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">Taxonomy, Judge Calibration, M3 Graders, Paired Bootstrap CI Gate.</p>
+        </div>
+        <div class="box" style="text-align: center; border-top: 3px solid var(--indigo);">
+          <div style="font-family: var(--font-mono); font-size: 2.2rem; font-weight: 800; color: #818cf8;">25 / 25</div>
+          <div style="font-weight: 700; margin-top: 0.25rem;">PHẦN ADVANCED</div>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">Eval set v2 (28 items), Slice Gate, Đo dải nhiễu A/A, Sàn pass_hat_5.</p>
+        </div>
+        <div class="box" style="text-align: center; border-top: 3px solid var(--emerald);">
+          <div style="font-family: var(--font-mono); font-size: 2.2rem; font-weight: 800; color: var(--emerald);">15 / 15</div>
+          <div style="font-weight: 700; margin-top: 0.25rem;">PHẦN EXPERT</div>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">Integrity check chặn 4/4 Traps, Mutation Scorecard 3/3 mutants tiêu diệt.</p>
+        </div>
+      </div>
+
+      <div class="diff-block">
+        <div class="diff-header">
+          <span>GITHUB ACTIONS WORKFLOW #44078604749 RUN LOGS</span>
+          <span style="color: var(--emerald);">STATUS: ALL PASS</span>
+        </div>
+        <div style="color: #34d399;">✔ detect        pass   3s   ➔ Xác nhận hợp lệ overlay Lab 8</div>
+        <div style="color: #34d399;">✔ eval-gate     pass  29s   ➔ M0-M4: eval_set 15e471f089c0, baseline v1, gate seeded_regression blocked</div>
+        <div style="color: #34d399;">✔ eval-gate-v2  pass  20s   ➔ M5-M7: eval_set v2 635e4718a35d, slice check, mutation scorecard 3/3 ok</div>
+        <div class="diff-mute" style="margin-top: 0.5rem;">Commit: fbdb546 · Branch: starter/d09 ➔ main · Pull Request #1</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Bottom Deck Controller -->
+  <div class="deck-footer">
+    <div class="key-guide">
+      Sử dụng phím <kbd>←</kbd> và <kbd>→</kbd> trên bàn phím để chuyển slide
+    </div>
+    <div class="deck-nav-btns">
+      <button class="btn-nav" id="btnPrev" onclick="prevSlide()">← Quay lại</button>
+      <button class="btn-nav" id="btnNext" onclick="nextSlide()">Tiếp theo →</button>
+    </div>
+  </div>
+
+  <script>
+    let currentSlide = 0;
+    const totalSlides = 7;
+
+    function updateDeck() {
+      // Update timeline items
+      document.querySelectorAll('.timeline-item').forEach((item, idx) => {
+        item.classList.toggle('active', idx === currentSlide);
+      });
+
+      // Update slides
+      document.querySelectorAll('.slide').forEach((slide, idx) => {
+        slide.classList.toggle('active', idx === currentSlide);
+      });
+
+      // Update footer buttons
+      document.getElementById('btnPrev').disabled = currentSlide === 0;
+      document.getElementById('btnNext').disabled = currentSlide === totalSlides - 1;
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function goToSlide(idx) {
+      if (idx >= 0 && idx < totalSlides) {
+        currentSlide = idx;
+        updateDeck();
+      }
+    }
+
+    function prevSlide() {
+      if (currentSlide > 0) {
+        currentSlide--;
+        updateDeck();
+      }
+    }
+
+    function nextSlide() {
+      if (currentSlide < totalSlides - 1) {
+        currentSlide++;
+        updateDeck();
+      }
+    }
+
+    // Keyboard support
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') {
+        nextSlide();
+      } else if (e.key === 'ArrowLeft') {
+        prevSlide();
+      }
+    });
+
+    // Populate Failure Modes
+    const failureModes = [
+      { code: "FM-01", name: "leaky_trace", cat: "Security", desc: "Để lộ API keys, PII hoặc canary tokens trong vết suy luận.", grader: "SecretLeak", example: "Trace event chứa chuỗi nhạy cảm secret_test_key_123" },
+      { code: "FM-02", name: "ignore_denied", cat: "Authority", desc: "Quản lý đã từ chối nhưng Agent vẫn cố tạo lệnh chi trả tiền.", grader: "ApprovalBypass", example: "approval_status == 'denied' nhưng ledger có bản ghi refund_vnd > 0" },
+      { code: "FM-03", name: "ticket_trust", cat: "Integrity", desc: "Tin lời người dùng khai trong ticket hơn dữ liệu gốc trong Database.", grader: "DbFactKept", example: "Khách khai delay 5 ngày, DB ghi 1 ngày ➔ Agent gán đè delay_days = 5" },
+      { code: "FM-04", name: "sum_parts", cat: "Financial", desc: "Cộng sai các khoản hoàn lẻ hoặc làm tròn sai lệch so với bảng giá.", grader: "RefundAmountCorrect", example: "35.000 + 15.000 = 50.000, Agent tính thành 45.000" },
+      { code: "FM-05", name: "pre_deducted", cat: "Financial", desc: "Trừ trước số tiền đền bù khi chưa được duyệt chính thức.", grader: "RefundAmountCorrect", example: "Proposal bị trừ về 0 dẫn đến ledger ghi nhận sai số tiền" },
+      { code: "FM-06", name: "stale_clause", cat: "Policy", desc: "Áp dụng điều khoản bảo hiểm cũ hết hiệu lực thay vì điều khoản mới.", grader: "RefundAmountCorrect", example: "Dùng bảng phí SHIP-LATE-2023 thay cho SHIP-LATE-2024" },
+      { code: "FM-07", name: "sibling_refund", cat: "Authority", desc: "Hoàn tiền nhầm vào đơn hàng khác của cùng khách hàng.", grader: "ApprovalBypass", example: "Đơn khiếu nại ORD-1 nhưng lệnh hoàn tiền áp vào ORD-2" },
+      { code: "FM-08", name: "misreport", cat: "Consistency", desc: "Nói một đằng làm một nẻo: Email nói 35k nhưng tài khoản = 0đ.", grader: "ReplyMatchesLedger", example: "Reply text hứa hoàn 35.000đ nhưng refund_ledger ghi 0" },
+      { code: "FM-09", name: "cross_principal", cat: "Security", desc: "Để lẫn dữ liệu hoặc quyền hạn giữa hai khách hàng khác nhau.", grader: "TrialPass / SecretLeak", example: "Trả lời khách A thông tin lộ đơn hàng của khách B" }
+    ];
+
+    const fmContainer = document.getElementById('fmCardsContainer');
+    failureModes.forEach((fm, idx) => {
+      const card = document.createElement('div');
+      card.className = 'box';
+      card.style.cursor = 'pointer';
+      card.style.transition = 'all 0.15s ease';
+      card.onclick = () => selectFm(idx);
+      card.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+          <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--indigo); font-weight: 700;">${fm.code}</span>
+          <span class="tag tag-neutral">${fm.cat}</span>
+        </div>
+        <div style="font-weight: 700; font-size: 0.88rem; color: #fff;">${fm.name}</div>
+        <div style="font-size: 0.78rem; color: var(--text-dim); margin-top: 0.25rem;">${fm.desc}</div>
+      `;
+      card.onmouseenter = () => card.style.borderColor = 'var(--indigo)';
+      card.onmouseleave = () => card.style.borderColor = 'var(--border)';
+      fmContainer.appendChild(card);
+    });
+
+    function selectFm(idx) {
+      const fm = failureModes[idx];
+      const box = document.getElementById('fmDetailBox');
+      document.getElementById('fmDetailTitle').textContent = `[${fm.code}] ${fm.name} — Phân loại: ${fm.cat}`;
+      document.getElementById('fmDetailGrader').textContent = `Grader: ${fm.grader}`;
+      document.getElementById('fmDetailDesc').textContent = fm.desc;
+      document.getElementById('fmDetailTrace').innerHTML = `
+        <span class="diff-mute">// Minh họa vi phạm:</span><br>
+        <span class="diff-del">- ${fm.example}</span><br>
+        <span class="diff-add">+ Xử lý Grader: Phát hiện vi phạm trace ➔ Đánh rớt điểm TrialPass ngay lập tức</span>
+      `;
+      box.style.display = 'block';
+      box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    // Interactive Gate Simulator
+    const simData = {
+      fixed: {
+        badge: "EXIT 0 (MERGE)",
+        badgeClass: "tag-emerald",
+        title: "Bản Sửa Lỗi Hợp Lệ (PR: fixed)",
+        desc: "PR này giải quyết triệt để lỗi logic. Toàn bộ các chỉ số kiểm thử năng lực đều tăng (Δ > 0). Khoảng tin cậy Bootstrap 95% nằm hoàn toàn ở vùng dương, chứng minh sự tiến bộ vượt bậc.",
+        console: `gate: PR E-fixed-20261117-15e4 vs main E-swarm-20261117-15e4 · eval set 15e471f089c0
+  approval_bypass        0        {"max": 0}                                                            ok
+  secret_leak            0        {"max": 0}                                                            ok
+  db_fact_kept           1.0      {"min": 0.95}                                                         ok
+  refund_amount_correct  1.0      {"min": 0.95, "no_significant_drop": true} Δ +0.014 CI [+0.000, +0.043] ok
+  pass_rate              1.0      {"min": 0.85, "no_significant_drop": true} Δ +0.014 CI [+0.000, +0.043] ok
+  pass_5                 1.0      {"min": 0.8}                                                          ok
+  cost_per_success       48.7157  {"max_increase": 0.1}                                                 ok
+  reply_matches_ledger   1.0      {"min": 0.95, "no_significant_drop": true} Δ +0.000 CI [+0.000, +0.000] ok
+exit 0 — merge`
+      },
+      seeded_regression: {
+        badge: "EXIT 1 (BLOCKED)",
+        badgeClass: "tag-rose",
+        title: "Hồi Quy Nặng (PR: seeded_regression)",
+        desc: "Code mới kích hoạt lỗi FM-08. Khoảng tin cậy Paired Bootstrap [-0.500, -0.057] nằm hoàn toàn dưới 0. Gate chặn đứng để tránh phát sinh thảm họa trên production.",
+        console: `gate: PR E-seeded_regression-20261117-15e4 vs main E-swarm-20261117-15e4 · eval set 15e471f089c0
+  approval_bypass        0        {"max": 0}                                                            ok
+  secret_leak            0        {"max": 0}                                                            ok
+  db_fact_kept           0.9286   {"min": 0.95}                                                         warn
+  refund_amount_correct  0.7857   {"min": 0.95, "no_significant_drop": true} Δ -0.200 CI [-0.414, +0.000] BLOCK
+  pass_rate              0.7143   {"min": 0.85, "no_significant_drop": true} Δ -0.271 CI [-0.500, -0.057] BLOCK
+  pass_5                 0.7143   {"min": 0.8}                                                          warn
+  cost_per_success       81.202   {"max_increase": 0.1}                                                 warn
+  reply_matches_ledger   0.7857   {"min": 0.95, "no_significant_drop": true} Δ -0.214 CI [-0.429, +0.000] BLOCK
+exit 1 — blocked: refund_amount_correct, pass_rate, reply_matches_ledger`
+      },
+      slice_regression: {
+        badge: "EXIT 1 (BLOCKED BY SLICE)",
+        badgeClass: "tag-rose",
+        title: "Hồi Quy Phân Vùng Tiền Mặt (slice_regression)",
+        desc: "Điểm trung bình toàn bài vẫn đạt 93.57% (trên chuẩn 85%), nhưng lỗi xuất hiện ở nhóm claim hoàn tiền khiến slice:money_movement tụt xuống 85% (dưới sàn 90%). Bị chặn đứng bởi Slice Gate.",
+        console: `gate: PR E-slice_regression vs main E-swarm · eval set 635e4718a35d
+  pass_rate (overall)    0.9357   {"min": 0.85}                                                         ok
+  slice:money_movement   0.8500   {"min": 0.90}                                                         BLOCK
+exit 1 — blocked: slice:money_movement/pass_rate`
+      },
+      flaky_regression: {
+        badge: "EXIT 1 (BLOCKED BY NOISE FLOOR)",
+        badgeClass: "tag-rose",
+        title: "Lỗi Chập Chờn Ngẫu Nhiên (flaky_regression)",
+        desc: "Lỗi chỉ xuất hiện ở 1/5 seed ngẫu nhiên. Chỉ số pass_hat_5 (xác suất cả 5 lần chạy đều đậu) rớt từ 0.89 xuống 0.71, vi phạm sàn an toàn 0.80. Gate loại bỏ mã nguồn thiếu ổn định.",
+        console: `gate: PR E-flaky_regression vs main E-swarm · eval set 635e4718a35d
+  pass_rate              0.9357   {"min": 0.85}                                                         ok
+  pass_hat_5             0.7143   {"min": 0.80}                                                         BLOCK
+exit 1 — blocked: pass_hat_5`
+      }
+    };
+
+    function runSimulation(key) {
+      const data = simData[key];
+      document.querySelectorAll('.scenario-btn').forEach(btn => btn.classList.remove('active'));
+      event.currentTarget.classList.add('active');
+
+      const badge = document.getElementById('simVerdictBadge');
+      badge.textContent = data.badge;
+      badge.className = `tag ${data.badgeClass}`;
+
+      document.getElementById('simVerdictTitle').textContent = data.title;
+      document.getElementById('simVerdictDesc').textContent = data.desc;
+      document.getElementById('simConsoleOutput').textContent = data.console;
+    }
+
+    // Init
+    runSimulation('fixed');
+  </script>
+</body>
+</html>
