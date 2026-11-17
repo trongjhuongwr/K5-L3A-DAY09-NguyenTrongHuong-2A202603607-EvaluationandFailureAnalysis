@@ -1,6 +1,6 @@
 # Rubric (100 điểm = Core 60 · Advanced 25 · Expert 15)
 
-Hạn nộp: **23:59 cùng ngày** (commit cuối trên PR trước 23:59 mới được chấm). Core nên xong trên lớp; Advanced/Expert làm tiếp sau 17:00.
+Bài cá nhân. Hạn nộp **theo ca làm bài** (xem LMS của ca): chấm nhánh `main` của bản fork, chỉ tính commit trước hạn. Core nên xong trên lớp; Advanced/Expert làm tiếp sau buổi.
 
 ## Core — 60 (giảng viên chấm theo checklist + test công khai)
 | Hạng mục | Điểm | Đạt đủ khi |
@@ -11,7 +11,7 @@ Hạn nộp: **23:59 cùng ngày** (commit cuối trên PR trước 23:59 mới 
 | M4 Bootstrap + gate | 15 | CI lệch ≤0.01; gate chặn `seeded_regression`, cho qua `fixed`; job `eval-gate` xanh; `eval` trong harness_map |
 | Eval card + PRD v1.1 | 9 | số liệu khớp report có run_id; nêu giới hạn (MockLLM, 14 item, judge replay) |
 
-## Advanced — 25 (bộ chấm ẩn `grade_hidden.py`, chạy trên repo của nhóm)
+## Advanced — 25 (bộ chấm ẩn `grade_hidden.py`, chạy trên bản fork của từng bạn)
 | Kiểm tra | Điểm |
 |---|---|
 | M6 `pass_at_k` / `pass_hat_k` đúng trên vector ẩn; từ chối (n, c, k) sai | 5 |

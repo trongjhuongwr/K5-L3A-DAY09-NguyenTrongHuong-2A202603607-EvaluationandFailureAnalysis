@@ -1,5 +1,21 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python / OS (the PowerShell setup creates src/.venv inside the repo)
+.venv/
 __pycache__/
-*.pyc
+*.py[cod]
+.pytest_cache/
+.DS_Store
+
+# Runtime output (baseline_v1.json / baseline_v2.json are added with git add -f)
 src/reports/
-src/traces/
+traces/
 *.sqlite
+*.sqlite-*
+student_drop/
+
+# Instructor-only hidden pack from Day 8. Never push it.
+src/eval/instructor/

@@ -3,7 +3,7 @@ on: [pull_request, workflow_dispatch]
 permissions: {contents: read}
 concurrency: {group: "eval-gate-${{ github.ref }}", cancel-in-progress: true}
 jobs:
-  # The starter repo is an overlay without src/lab8; its CI only runs once copied into a Lab 8 repo.
+  # The starter repo has no src/lab8; its CI only runs after src/ of the Day 8 repo is copied into the fork.
   detect:
     runs-on: ubuntu-latest
     outputs: {lab8: "${{ steps.has.outputs.lab8 }}"}

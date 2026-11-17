@@ -3,63 +3,87 @@
 > Nối tiếp Lab 8. Lab 8 trả lời "agent có chạy không"; Lab 9 trả lời **"làm sao biết bản mới tốt hơn — và chặn được bản tệ trước khi merge"**.
 > Không cần API key: MockLLM + judge replay. **Không Langfuse / OTel** (observability học ở Day 14).
 
-## Bạn sẽ làm gì (13:30–17:00 trên lớp, nộp muộn nhất 23:59 cùng ngày)
+## Bạn sẽ làm gì (**bài cá nhân** · giờ trên lớp và hạn nộp theo ca làm bài, xem LMS của ca)
+Giờ trong bảng là của ca 13:30–17:00; ca khác dời các mốc tương ứng.
+
 | M | Giờ | Việc | Lệnh kiểm tra |
 |---|---|---|---|
-| M0 | 13:30 | Overlay starter lên repo Lab 8, cài đặt và sinh eval set | `python -m lab9.smoke` và `python -m lab9.evalset --build` |
+| M0 | 13:30 | Fork repo này, chép `src/` của repo gốc Day 8 vào, cài đặt và sinh eval set | `python -m lab9.smoke` và `python -m lab9.evalset --build` |
 | M1 | 13:45 | Taxonomy ≥5 failure mode từ trace; gắn `failure_modes` cho eval set | `python -m lab9.evalset --check` |
 | M2 | 14:30 | Judge-the-judge: cài `kappa`, P/R, Rogan-Gladen; audit ≥5 bất đồng | `python -m lab9.judge --csv data/eval/judge_tone_public.csv --audit 5` |
 | M3 | 15:15 | Trajectory assertion: `ApprovalBypass`, `RefundAmountCorrect` + 1 metric cho FM-08 | `python -m pytest -q -m student -o addopts= -k "lab9 and not advanced"` |
 | M4 | 16:00 | Paired bootstrap + CI gate: chặn `seeded_regression`, cho qua `fixed` | `python -m lab9.gate ...` (exit 1 / exit 0) |
-| — | 16:45 | Eval card + PRD v1.1; mở PR (Core 60đ nên xong trên lớp) | xem `SUBMISSION.md` |
+| — | 16:45 | Eval card + PRD v1.1; mở PR trong bản fork, CI xanh thì merge vào `main` (Core 60đ nên xong trên lớp) | xem `SUBMISSION.md` |
 | M5 | sau 17:00 | **Advanced.** Eval set v2: adversarial pack + `fm_map.yaml`; slice gate (`money_movement`, `adversarial`) | `python -m lab9.evalset --v2 --build` |
 | M6 | sau 17:00 | **Advanced.** Nhiễu: A/A trên 2 bộ seed, `pass@k` / `pass^k`, ngưỡng `pass_hat_5` | `python -m lab9.mutation --aa 66,77,88,99,110 ...` |
 | M7 | sau 17:00 | **Expert.** Gate chống gian lận eval: `integrity_check` + ratchet; scorecard đột biến | `python -m lab9.traps` và `python -m lab9.mutation ...` |
 
-## Cài đặt (M0): chép overlay vào repo Lab 8
+## Cài đặt (M0): fork repo này, chép code gốc Day 8 vào
 
-Starter này **không chạy độc lập**: nó chỉ có `src/lab9/`, docs và workflow. Code agent, dữ liệu và `requirements.txt` nằm trong repo Lab 8 của nhóm.
+**Bài cá nhân.** Mỗi bạn làm trên bản fork của riêng mình, không làm chung trên repo nhóm Lab 8: ai cũng phải tự đi hết quy trình evaluation.
 
-**Không cần hoàn thiện Lab 8.** M0–M4 (baseline, gate, `fixed`, `seeded_regression`) đều chạy trên shape `swarm`, tức `lab8/shapes/swarm_reference.py` do giảng viên cung cấp, không dùng `workflow`/`single`/`orchestrator` của nhóm. Repo Lab 8 còn TODO vẫn làm được Lab 9, miễn là package `src/lab8/` còn nguyên.
+Repo này **không chạy độc lập**: nó chỉ có `src/lab9/`, docs và workflow. Code agent, dữ liệu và `requirements.txt` lấy từ **repo gốc Day 8** ([`K5-Day8-From-Workflows-to-Agents`](https://github.com/VinUni-AI20k/K5-Day8-From-Workflows-to-Agents)). Hai thư mục `src/` không trùng file nào, nên chép thẳng được.
+
+**Dùng code gốc Day 8, không cần bài Lab 8 của nhóm.** M0–M4 (baseline, gate, `fixed`, `seeded_regression`) đều chạy trên shape `swarm`, tức `lab8/shapes/swarm_reference.py` do giảng viên cung cấp, không dùng `workflow`/`single`/`orchestrator` của nhóm. Lấy code gốc thì mọi người chạy cùng một agent, ra cùng trace, và không ai lỡ mang theo `src/lab8/` đã sửa.
 
 **Lab 8 bị khóa, trace cố định.** Không sửa file nào trong `src/lab8/` (trừ 10 điểm). Trace không commit sẵn: `lab9.eval` chạy lại agent bằng MockLLM trên 14 item × 5 seed cố định, nên chạy lần nào cũng ra cùng một trace. Việc của bạn là eval và phân tích dựa trên trace đó: taxonomy, judge calibration, grader, bootstrap gate.
 
+**1. Trên GitHub.** Bấm **Fork** repo này về tài khoản của bạn và đặt tên theo mẫu
+`K5-L3A-DAY09-HoVaTen-MSSV-EvaluationandFailureAnalysis`.
+Sau đó vào tab **Actions** của bản fork, bấm bật workflow: GitHub tắt sẵn workflow trên repo fork, không bật thì job `eval-gate` không chạy.
+
+**2. Trên máy** (macOS / Linux):
 ```bash
-# 1. Ở thư mục chứa repo Lab 8 của nhóm (bản nào cũng được, kể cả chưa xong)
-git clone https://github.com/VinUni-AI20k/K5-Day9-Evaluation-and-Failure-Analysis lab9-starter
-cd <repo-lab8-cua-nhom>
+# Clone bản fork của bạn và repo gốc Day 8 vào cùng một thư mục
+git clone https://github.com/<github-cua-ban>/K5-L3A-DAY09-HoVaTen-MSSV-EvaluationandFailureAnalysis lab9
+git clone https://github.com/VinUni-AI20k/K5-Day8-From-Workflows-to-Agents day8-goc
+
+# Tạo nhánh làm bài, chép src/ của Day 8 vào src/ của bản fork.
+# Chỉ chép src/: KHÔNG chép README, .gitignore, .github của Day 8.
+cd lab9
 git switch -c starter/d09
+cp -R ../day8-goc/src/. src/
+git add -A && git commit -m "chore: add day8 source"
 
-# 2. Chép đúng 3 thư mục. KHÔNG chép README/CHECKPOINTS/RUBRIC/SUBMISSION/.gitignore ở gốc:
-#    các file đó trùng tên với Lab 8; đọc chúng ngay trong lab9-starter.
-#    Chép nhầm .gitignore sẽ mất dòng chặn .env và src/eval/instructor/ của Lab 8.
-cp -R ../lab9-starter/src/. src/
-cp -R ../lab9-starter/docs/. docs/
-cp -R ../lab9-starter/.github/. .github/     # thêm eval-gate.yml, giữ ci.yml của Lab 8
-
-# 3. Cài và kiểm tra (Python ≥ 3.11). Với uv: `uv venv && source .venv/bin/activate` trước
+# Cài và kiểm tra (Python 3.11–3.13). Với uv: `uv venv && source .venv/bin/activate` trước
 cd src
 uv pip install -r requirements.txt -r requirements-lab9.txt   # không dùng uv: python -m pip install ...
-python -m lab9.smoke
+python -m lab9.smoke                    # M0 PASS
 python -m lab9.evalset --build          # sinh eval_set_v1.jsonl + labels_v1.json (nhãn TÁCH khỏi item)
-cd .. && git add -A && git commit -m "chore: add lab9 overlay"
+cd .. && git add -A && git commit -m "chore: build eval set v1"
 ```
 
-Kiểm tra nhanh sau bước 2: `git status` chỉ hiện file **mới** trong `src/lab9/`, `src/tests/test_lab9_*`, `src/config/`, `src/data/eval/`, `docs/` và `.github/workflows/eval-gate.yml`. Nếu thấy file `src/lab8/` bị sửa, bạn đã chép nhầm: `git restore src/lab8`.
+Windows (PowerShell), cùng các bước trên:
+```powershell
+git clone https://github.com/<github-cua-ban>/K5-L3A-DAY09-HoVaTen-MSSV-EvaluationandFailureAnalysis lab9
+git clone https://github.com/VinUni-AI20k/K5-Day8-From-Workflows-to-Agents day8-goc
+cd lab9
+git switch -c starter/d09
+Copy-Item -Recurse -Force ..\day8-goc\src\* src\
+git add -A; git commit -m "chore: add day8 source"
+cd src
+python -m venv .venv; .\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt -r requirements-lab9.txt
+python -m lab9.smoke
+python -m lab9.evalset --build
+cd ..; git add -A; git commit -m "chore: build eval set v1"
+```
 
-**Baseline cho CI (M4).** Job `eval-gate` đọc `src/reports/baseline_v1.json` trên nhánh, nên file này phải được commit. Sinh từ `main` đã hoàn thành M1–M3 (`-f` để chắc chắn không bị `.gitignore` bỏ qua):
+Kiểm tra nhanh sau bước 2: `src/` có cả `lab8/` và `lab9/`, và `python -m lab9.smoke` in `M0 PASS`. Từ đây không sửa file nào trong `src/lab8/`; lỡ sửa thì `git restore src/lab8`.
+
+**Baseline cho CI (M4).** Job `eval-gate` đọc `src/reports/baseline_v1.json` trên nhánh, nên file này phải được commit. Sinh sau khi đã hoàn thành M1–M3 trên nhánh làm bài (`-f` để chắc chắn không bị `.gitignore` bỏ qua):
 ```bash
 cd src
 python -m lab9.eval --shape swarm --spec config/metric_spec.yaml --out reports/baseline_v1.json
 git add -f reports/baseline_v1.json && git commit -m "chore: add eval baseline v1"
 ```
-Workflow chạy khi mở PR (hoặc chạy tay ở tab Actions), không chạy khi push thẳng lên `main`.
+Workflow chạy khi mở PR (hoặc chạy tay ở tab Actions), không chạy khi push thẳng lên `main`. Mở PR **trong bản fork của bạn** (`starter/d09` → `main`); GitHub hay chọn sẵn repo gốc làm đích, nhớ đổi "base repository" về bản fork.
 
 Ở M0, cả hai lệnh trả exit 0. Các item mới có `failure_modes` rỗng. Sau khi gắn mã lỗi từ taxonomy ở M1, chạy `python -m lab9.evalset --check` và kiểm tra kết quả có 0 lỗi.
 
 Job `eval-gate` cần các bài tập đã hoàn thành và baseline M4. Job chạy test học viên, kiểm tra eval set, rồi dùng cùng metric spec và baseline để chấm `swarm` của PR và xác nhận `fixed` qua gate, `seeded_regression` bị chặn ở `pass_rate`.
 
-## Advanced / Expert (M5–M7): làm tiếp tới 23:59
+## Advanced / Expert (M5–M7): làm tiếp tới hạn nộp
 
 Core (M0–M4, 60đ) chứng minh gate chặn được một regression **rõ ràng**. Thực tế khó hơn: regression chỉ nằm ở một slice nhỏ, agent chập chờn 1/5 lần, và người viết PR (hoặc chính agent) có thể "làm đẹp" report thay vì sửa lỗi. M5–M7 tập đúng ba tình huống đó. Giảng viên chấm bằng **variant và trap ẩn** không có trong repo, nên khớp cứng tên variant công khai sẽ không được điểm.
 

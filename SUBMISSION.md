@@ -1,5 +1,9 @@
-# Nộp bài (hạn 23:59 cùng ngày)
-PR từ `starter/d09` → `main` của repo nhóm. Chấm commit cuối trước 23:59; commit sau hạn không tính.
+# Nộp bài (bài cá nhân, hạn nộp theo ca làm bài)
+1. Mở PR `starter/d09` → `main` **trong bản fork của bạn**, không mở vào repo gốc. Dán output gate exit 1 của `seeded_regression` vào mô tả PR.
+2. Job `eval-gate` xanh thì **merge PR vào `main`**. Giảng viên chấm nhánh `main` của bản fork; commit sau hạn của ca không tính.
+3. Dán **link repo fork** (`K5-L3A-DAY09-HoVaTen-MSSV-EvaluationandFailureAnalysis`) lên LMS.
+
+Làm thêm Advanced/Expert sau buổi: tiếp tục trên nhánh, mở PR mới rồi merge lại trước hạn.
 
 ## Core (nên xong trước 17:00)
 - [ ] `src/lab9/{stats,graders,evalset}.py` đã hoàn thành TODO M1–M4
@@ -9,7 +13,7 @@ PR từ `starter/d09` → `main` của repo nhóm. Chấm commit cuối trước
 - [ ] `harness_map.yaml` có section `eval` (mẫu: `src/harness_map.eval.yaml`)
 - [ ] Job `eval-gate` xanh; dán output gate exit 1 của `seeded_regression` vào mô tả PR
 
-## Advanced / Expert (tới 23:59)
+## Advanced / Expert (tới hạn nộp)
 - [ ] `config/fm_map.yaml`, `config/metric_spec_v2.yaml` (slices, `pass_hat_5`, metric FM-08), `stats.pass_at_k/pass_hat_k`, `gate.slice_check`, `gate.integrity_check`
 - [ ] `src/data/eval/eval_set_v2.jsonl` + `labels_v2.json` (sinh bằng `evalset --v2 --build`)
 - [ ] `src/reports/baseline_v2.json` (sinh bằng script) → job `eval-gate-v2` chạy và xanh
